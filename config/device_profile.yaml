@@ -1,0 +1,58 @@
+# dandelion-doctor device profile
+# Locked to a single physical unit per Section 2 (Unit-Binding, Ethics & Safety Policy).
+# This file is the single source of truth for which device this toolkit is permitted to operate on.
+
+device:
+  model: "M2006C3LI"
+  marketing_name: "Redmi 9A Sport"
+  codename: "dandelion"
+  tree_family: "blossom"
+  chipset: "MT6762G"          # Identifies as MT6765 in BROM (HW_CODE 0x0766)
+  brom_hw_code: "0x0766"
+  brom_hw_subcode: "0x8A00"
+  brom_hw_ver: "0xCA00"
+  pmic: "MT6357"
+  rf_transceiver: "MT6177M"
+  connsys: "MT6631"
+  storage: "eMMC 5.1 32GB"
+  ram_variants: ["2GB_MICRON", "2GB_SAMSUNGHYNIX", "3GB_MICRON", "3GB_SAMSUNGHYNIX"]
+  stock_branches: ["QCDINXM", "RCDINXM", "RCZINXM"]
+
+# Hard serial lock. Populated / verified automatically on first BROM handshake
+# (see core/safety.py). Every destructive transport operation must re-check this.
+unit_lock:
+  fbsn: "6XLFMR9DVK7PCM6H"
+  me_id_hash: null     # SHA-256 of ME_ID, filled on first verified BROM handshake
+  soc_id_hash: null    # SHA-256 of SOC_ID, filled on first verified BROM handshake
+
+safety:
+  preloader_quarantine: true          # preloader (Boot1) is read-only unless --repair-preloader
+  require_golden_vault_before_destructive_ops: true
+  min_battery_mv: 3650
+  min_free_disk_gb: 20
+  golden_vault_partitions:
+    - proinfo
+    - nvram
+    - nvdata
+    - nvcfg
+    - protect1
+    - protect2
+    - persist
+    - seccfg
+    - pgpt
+
+ethics:
+  # Per Section 2.4: identifier recovery is restricted to restoring this unit's
+  # own backed-up or originally-printed (box/SIM-tray/PCB) identifiers.
+  allow_identifier_restore_from_golden_vault: true
+  allow_identifier_restore_from_original_factory_markings: true
+  allow_identifier_spoofing_or_cloning: false
+  allow_frp_or_mi_account_bypass: false
+
+paths:
+  catalog_jsonl: "assets/catalog/fixes_10560.jsonl"
+  catalog_db: "assets/catalog/fixes_10560.db"
+  golden_vault_dir: "backups/6XLFMR9DVK7PCM6H/golden_nv_vault"
+  snapshots_dir: "backups/6XLFMR9DVK7PCM6H/snapshots"
+  manifests_dir: "backups/6XLFMR9DVK7PCM6H/manifests"
+  logs_dir: "logs"

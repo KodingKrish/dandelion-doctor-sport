@@ -1,0 +1,2 @@
+[console_scripts]
+dandelion-doctor = dandelion_doctor.ui.cli:app
