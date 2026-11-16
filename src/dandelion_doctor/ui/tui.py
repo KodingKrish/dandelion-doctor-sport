@@ -29,6 +29,7 @@ from dandelion_doctor.core.logger import AuditLogger
 from dandelion_doctor.core.rule_engine import RuleResolver, Telemetry
 from dandelion_doctor.core.safety import DeviceHandshake, SafetyGatekeeper
 from dandelion_doctor.core.scatter import GOLDEN_VAULT_DUMP_SET, PARTITIONS_BY_NAME
+from dandelion_doctor.engines.auto_repair import AutoRepairEngine
 from dandelion_doctor.core.vault import GoldenVaultManager
 from dandelion_doctor.engines.domains import ALL_ENGINES
 
@@ -96,16 +97,16 @@ TabPane {{
     height: 1;
 }}
 
+#diagnose-controls, #preflight-controls, #autorepair-controls {{
+    height: auto;
+    padding: 1 0;
+}}
+
 #fix-detail {{
     border: round {PASTEL_MINT};
     background: {BG_RAISED};
     height: 1fr;
     padding: 1 2;
-}}
-
-#diagnose-controls, #preflight-controls {{
-    height: auto;
-    padding: 1 0;
 }}
 
 Input {{
@@ -197,7 +198,7 @@ class FixDetailScreen(ModalScreen[None]):
 
 
 class DandelionDoctorApp(App):
-    """dandelion-doctor TUI — Status / Diagnose / Catalog / Vault / Preflight."""
+    """dandelion-doctor TUI — Status / Diagnose / Catalog / Vault / Preflight / Auto-Repair."""
 
     CSS = CSS
     TITLE = "dandelion-doctor"
@@ -210,6 +211,7 @@ class DandelionDoctorApp(App):
         self.resolver = RuleResolver(self.profile.resolve_path(self.profile.paths.catalog_db))
         self.gatekeeper = SafetyGatekeeper(self.profile)
         self.logger = AuditLogger(self.profile.resolve_path(self.profile.paths.logs_dir))
+        self.auto_repair_engine = AutoRepairEngine(self.profile, self.resolver, self.gatekeeper, self.logger)
 
     # ------------------------------------------------------------------ UI
     def compose(self) -> ComposeResult:
@@ -225,6 +227,8 @@ class DandelionDoctorApp(App):
                 yield from self._compose_vault_tab()
             with TabPane("Preflight", id="tab-preflight"):
                 yield from self._compose_preflight_tab()
+            with TabPane("Auto-Repair", id="tab-autorepair"):
+                yield from self._compose_autorepair_tab()
         yield Footer()
 
     def _compose_status_tab(self) -> ComposeResult:
@@ -267,6 +271,19 @@ class DandelionDoctorApp(App):
                 yield Button("Run Section 13.1 Pre-Flight", id="run-preflight", variant="primary")
             yield Static(id="preflight-result")
 
+    def _compose_autorepair_tab(self) -> ComposeResult:
+        with VerticalScroll():
+            with Horizontal(id="autorepair-controls"):
+                yield Input(placeholder="BROM error code, e.g. 4032", id="autorepair-brom-input")
+                yield Input(placeholder="Battery mV", id="autorepair-battery-input")
+                yield Button("Run Auto-Repair Scan", id="run-autorepair-scan", variant="primary")
+                yield Button("Execute Auto-Heal", id="run-autorepair-apply")
+            yield Label("Optional telemetry for auto-repair evaluation:")
+            yield TextArea(id="autorepair-telemetry-text")
+            table = DataTable(id="autorepair-table")
+            table.add_columns("Domain", "Fix ID", "Title", "Status / Details")
+            yield table
+
     # ------------------------------------------------------------- events
     def on_mount(self) -> None:
         self._refresh_status()
@@ -303,6 +320,34 @@ class DandelionDoctorApp(App):
             engine = engine_cls(self.resolver, self.gatekeeper, self.logger)
             report = engine.diagnose(telemetry)
             table.add_row(report.domain_name, report.diagnosis, ", ".join(report.matched_fix_ids[:5]) or "-")
+
+    @on(Button.Pressed, "#run-autorepair-scan")
+    def run_autorepair_scan(self) -> None:
+        self._run_autorepair_pipeline(auto_apply=False)
+
+    @on(Button.Pressed, "#run-autorepair-apply")
+    def run_autorepair_apply(self) -> None:
+        self._run_autorepair_pipeline(auto_apply=True)
+
+    def _run_autorepair_pipeline(self, auto_apply: bool) -> None:
+        brom_error = self.query_one("#autorepair-brom-input", Input).value.strip() or None
+        battery_raw = self.query_one("#autorepair-battery-input", Input).value.strip()
+        battery_mv = int(battery_raw) if battery_raw.isdigit() else None
+        telemetry_text = self.query_one("#autorepair-telemetry-text", TextArea).text
+        lines = telemetry_text.splitlines()
+
+        telemetry = Telemetry(dmesg_lines=lines, logcat_lines=lines, brom_error_code=brom_error)
+        handshake = DeviceHandshake(battery_mv=battery_mv)
+
+        results = self.auto_repair_engine.run_auto_heal_pipeline(
+            telemetry, handshake=handshake, auto_apply=auto_apply
+        )
+
+        table = self.query_one("#autorepair-table", DataTable)
+        table.clear()
+        for res in results:
+            status_str = "SUCCESS" if res.success else ("CANDIDATE" if not auto_apply else "FAILED")
+            table.add_row(res.domain, res.fix_id, res.title, f"{status_str} — {res.details}")
 
     @on(Input.Submitted, "#catalog-search-input")
     def search_catalog_submitted(self, event: Input.Submitted) -> None:

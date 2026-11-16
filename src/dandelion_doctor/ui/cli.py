@@ -108,6 +108,48 @@ def preflight(battery_mv: int = typer.Option(None), serialno: str = typer.Option
             console.print(f"  - {failure}")
     resolver.close()
 
+@app.command()
+def auto_repair(
+    dmesg: Path = typer.Option(None, help="File containing captured dmesg output"),
+    logcat: Path = typer.Option(None, help="File containing captured logcat output"),
+    brom_error: str = typer.Option(None, help="Observed BROM/SPFT error code, e.g. 4032"),
+    battery_mv: int = typer.Option(None, help="Device battery voltage in mV for pre-flight safety check"),
+    serialno: str = typer.Option(None, help="Device serial number"),
+    apply: bool = typer.Option(False, "--apply", help="Execute repairs autonomously if pre-flight checks pass"),
+):
+    """Run automated multi-domain diagnosis, safety pre-flight check, and remediation pipeline."""
+    from dandelion_doctor.engines.auto_repair import AutoRepairEngine
+
+    profile, resolver, gatekeeper, logger = _bootstrap()
+    telemetry = Telemetry(
+        dmesg_lines=dmesg.read_text().splitlines() if dmesg else [],
+        logcat_lines=logcat.read_text().splitlines() if logcat else [],
+        brom_error_code=brom_error,
+    )
+    handshake = DeviceHandshake(serialno=serialno, battery_mv=battery_mv)
+    engine = AutoRepairEngine(profile, resolver, gatekeeper, logger)
+
+    console.print(f"[bold cyan]dandelion-doctor — Auto-Repair Engine[/bold cyan] (Mode: {'AUTONOMOUS EXECUTION' if apply else 'DRY-RUN SCAN'})")
+
+    results = engine.run_auto_heal_pipeline(telemetry, handshake=handshake, auto_apply=apply)
+
+    if not results:
+        console.print("[green]System pristine. No repair candidates identified across domains.[/green]")
+        resolver.close()
+        return
+
+    table = Table(title="Auto-Repair Pipeline Results")
+    table.add_column("Domain")
+    table.add_column("Fix ID")
+    table.add_column("Title")
+    table.add_column("Status / Details")
+
+    for res in results:
+        status_str = "[green]SUCCESS[/green]" if res.success else ("[yellow]CANDIDATE[/yellow]" if not apply else "[red]FAILED[/red]")
+        table.add_row(res.domain, res.fix_id, res.title, f"{status_str} — {res.details}")
+
+    console.print(table)
+    resolver.close()
 
 if __name__ == "__main__":
     app()
