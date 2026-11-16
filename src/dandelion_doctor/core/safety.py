@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from dandelion_doctor.core.config import DeviceProfile
+from dandelion_doctor.core.vault import GoldenVaultManager
 
 
 class SafetyViolation(RuntimeError):
@@ -78,25 +79,19 @@ class SafetyGatekeeper:
 
     # ---- Section 7.5 / 13.1: Golden Vault mandate --------------------------
     def golden_vault_present_and_verified(self) -> bool:
-        vault_dir = self.profile.resolve_path(self.profile.paths.golden_vault_dir)
-        manifests_dir = self.profile.resolve_path(self.profile.paths.manifests_dir)
-        if not vault_dir.exists() or not any(vault_dir.iterdir()):
-            return False
-        required = set(self.profile.safety.golden_vault_partitions)
-        present = {p.stem for p in vault_dir.glob("*")}
-        if not required.issubset(present):
-            return False
-        # Every vaulted partition must have a matching SHA-256 manifest entry.
-        for part in required:
-            manifest = manifests_dir / f"{part}.sha256"
-            if not manifest.exists():
-                return False
-            digest = manifest.read_text(encoding="utf-8").split()[0]
-            blob = vault_dir / part
-            actual = hashlib.sha256(blob.read_bytes()).hexdigest()
-            if digest != actual:
-                return False
-        return True
+        ok, _failures = self.golden_vault_status()
+        return ok
+
+    def golden_vault_status(self) -> tuple[bool, list[str]]:
+        """Like golden_vault_present_and_verified(), but also returns the
+        specific failures (missing/corrupted/tampered partitions) for
+        diagnostics. Delegates to GoldenVaultManager.verify_at_rest(), which
+        checks ciphertext SHA-256 integrity without needing the vault
+        passphrase (Section 13.1 only requires the vault be present and
+        verified, not that it be decrypted on every preflight)."""
+        vault = GoldenVaultManager(self.profile, passphrase="")  # not used for at-rest check
+        required = self.profile.safety.golden_vault_partitions
+        return vault.verify_at_rest(required)
 
     # ---- Section 2.2: Preloader Quarantine ---------------------------------
     def preloader_write_allowed(self, repair_preloader_flag: bool, dead_boot_confirmed: bool) -> bool:
@@ -110,11 +105,10 @@ class SafetyGatekeeper:
         failures.extend(self.check_fbsn(handshake))
 
         if self.profile.safety.require_golden_vault_before_destructive_ops:
-            if not self.golden_vault_present_and_verified():
-                failures.append(
-                    "Golden NV Vault missing or SHA-256 verification failed "
-                    "(proinfo/nvram/nvdata/nvcfg/protect1/protect2/persist/seccfg/pgpt)."
-                )
+            vault_ok, vault_failures = self.golden_vault_status()
+            if not vault_ok:
+                failures.append("Golden NV Vault missing or SHA-256 verification failed: "
+                                 + "; ".join(vault_failures))
 
         if not handshake.battery_disconnected:
             min_mv = self.profile.safety.min_battery_mv

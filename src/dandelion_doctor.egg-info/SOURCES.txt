@@ -9,10 +9,12 @@ src/dandelion_doctor.egg-info/requires.txt
 src/dandelion_doctor.egg-info/top_level.txt
 src/dandelion_doctor/core/__init__.py
 src/dandelion_doctor/core/config.py
+src/dandelion_doctor/core/crypto.py
 src/dandelion_doctor/core/logger.py
 src/dandelion_doctor/core/rule_engine.py
 src/dandelion_doctor/core/safety.py
 src/dandelion_doctor/core/scatter.py
+src/dandelion_doctor/core/vault.py
 src/dandelion_doctor/engines/__init__.py
 src/dandelion_doctor/engines/base.py
 src/dandelion_doctor/engines/domains.py
@@ -25,6 +27,9 @@ src/dandelion_doctor/transport/state_machine.py
 src/dandelion_doctor/transport/usb_watcher.py
 src/dandelion_doctor/ui/__init__.py
 src/dandelion_doctor/ui/cli.py
+src/dandelion_doctor/ui/tui.py
 tests/test_catalog.py
 tests/test_rule_engine.py
 tests/test_safety.py
+tests/test_tui.py
+tests/test_vault.py

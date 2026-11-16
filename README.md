@@ -21,7 +21,19 @@ Built from the Master Engineering Plan, section by section:
 | 14 | Tests & mock transport harness | `tests/` |
 | 15 | CLI entrypoint | `ui/cli.py` |
 
-## Quick start
+## Quick start — the easy way
+
+```bash
+python start.py
+```
+
+That's it. `start.py` checks your Python version, offers to install missing
+dependencies with pip, builds the fix catalog if it isn't built yet, and
+launches the TUI. If `textual` isn't installed and you decline installing
+it, it drops into a simple text menu instead that drives the same CLI
+commands. Safe to run repeatedly — every step is skipped if already done.
+
+## Quick start — manual / for development
 
 ```bash
 pip install -e ".[dev]"
@@ -32,6 +44,28 @@ dandelion-doctor search "persist"           # FTS5 search over the catalog
 dandelion-doctor diagnose --dmesg dmesg.txt --brom-error 4032   # read-only, zero writes
 dandelion-doctor preflight --battery-mv 4000 --serialno 6XLFMR9DVK7PCM6H
 ```
+
+## TUI dashboard
+
+```bash
+pip install -e ".[tui]"
+dandelion-doctor-tui          # or: python -m dandelion_doctor.ui.tui
+```
+
+A full-screen terminal dashboard (built with [Textual](https://textual.textualize.io/),
+no Qt/PySide6 needed) with five tabs:
+
+- **Status** — device lock, chipset, Golden Vault verification state
+- **Diagnose** — paste captured dmesg/logcat + a BROM error code, run all 15
+  engines read-only, see matching FIX-* candidates per domain
+- **Catalog** — full-text search across all 10,560 fixes; click a row for the
+  full record
+- **Vault** — every Golden Vault partition, its safety tier, and whether it's
+  present/verified/missing/tampered
+- **Preflight** — run the Section 13.1 mandatory pre-flight checklist
+  interactively
+
+Keys: `q` quits, `r` refreshes the Status tab, `Tab`/click to switch tabs.
 
 ## What's implemented vs. stubbed
 

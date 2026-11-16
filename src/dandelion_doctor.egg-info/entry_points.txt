@@ -1,2 +1,3 @@
 [console_scripts]
 dandelion-doctor = dandelion_doctor.ui.cli:app
+dandelion-doctor-tui = dandelion_doctor.ui.tui:run

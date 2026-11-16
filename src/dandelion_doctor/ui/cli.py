@@ -12,6 +12,8 @@ from dandelion_doctor.core.config import load_profile
 from dandelion_doctor.core.logger import AuditLogger
 from dandelion_doctor.core.rule_engine import RuleResolver, Telemetry
 from dandelion_doctor.core.safety import DeviceHandshake, SafetyGatekeeper
+from dandelion_doctor.core.scatter import GOLDEN_VAULT_DUMP_SET
+from dandelion_doctor.core.vault import GoldenVaultManager
 from dandelion_doctor.engines.domains import ALL_ENGINES
 
 app = typer.Typer(help="dandelion-doctor — Redmi 9A Sport (M2006C3LI) diagnostic/repair toolkit")
